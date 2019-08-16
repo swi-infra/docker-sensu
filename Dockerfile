@@ -32,7 +32,7 @@ RUN apt-get update && \
 COPY --from=rubybuild $RUBY_PATH $RUBY_PATH
 MAINTAINER Shane Starcher <shanestarcher@gmail.com>
 
-ARG SENSU_VERSION=1.6.1-1
+ARG SENSU_VERSION=1.8.0-1
 ARG DUMB_INIT_VERSION=1.2.0
 ARG ENVTPL_VERSION=0.2.3
 
@@ -54,7 +54,6 @@ RUN \
     rm -rf /opt/sensu/embedded/lib/ruby/gems/2.5.0/{cache,doc}/* &&\
     find /opt/sensu/embedded/lib/ruby/gems/ -name "*.o" -delete &&\
     # Cleanup debian
-    apt-get remove -y gnupg &&\
     apt-get autoremove -y &&\
     rm -rf /var/lib/apt/lists/* &&\
     # Install dumb-init
