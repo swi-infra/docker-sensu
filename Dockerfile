@@ -1,4 +1,35 @@
-FROM ruby:2.5-slim-stretch
+ARG RUBY_PATH=/usr/local/
+ARG RUBY_VERSION=2.5.3
+
+FROM ubuntu:16.04 AS rubybuild
+ARG RUBY_PATH
+ARG RUBY_VERSION
+RUN apt-get update && \
+    apt-get install -y \
+        git \
+        build-essential
+RUN apt-get install -y wget
+RUN apt-get install -y libssl-dev libreadline-dev zlib1g-dev
+RUN git clone git://github.com/rbenv/ruby-build.git $RUBY_PATH/plugins/ruby-build \
+&&  $RUBY_PATH/plugins/ruby-build/install.sh
+RUN ruby-build $RUBY_VERSION $RUBY_PATH
+
+FROM ubuntu:16.04
+LABEL maintainer "Drecom Technical Development Department <pr_itn@drecom.co.jp>"
+ARG RUBY_PATH
+ENV PATH $RUBY_PATH/bin:$PATH
+RUN apt-get update && \
+    apt-get install -y \
+        git \
+        curl \
+        gcc \
+        make \
+        libssl-dev \
+        zlib1g-dev \
+        libmysqlclient-dev \
+        redis-server \
+        libsqlite3-dev
+COPY --from=rubybuild $RUBY_PATH $RUBY_PATH
 MAINTAINER Shane Starcher <shanestarcher@gmail.com>
 
 ARG SENSU_VERSION=1.6.1-1
@@ -7,7 +38,7 @@ ARG ENVTPL_VERSION=0.2.3
 
 RUN \
     apt-get update &&\
-    apt-get install -y --no-install-recommends curl ca-certificates apt-transport-https gnupg locales &&\
+    apt-get install -y --no-install-recommends curl ca-certificates apt-transport-https gnupg locales lsb-release && \
     # Setup default locale & cleanup unneeded
     echo "LC_ALL=en_US.UTF-8" >> /etc/environment &&\
     echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen &&\
@@ -17,7 +48,7 @@ RUN \
     find /usr/share/i18n/charmaps ! -name UTF-8.gz -type f -exec rm -v {} + &&\
     # Install Sensu
     curl -s https://sensu.global.ssl.fastly.net/apt/pubkey.gpg | apt-key add - &&\
-    echo "deb https://sensu.global.ssl.fastly.net/apt stretch main" > /etc/apt/sources.list.d/sensu.list &&\
+    echo "deb https://sensu.global.ssl.fastly.net/apt $(lsb_release -sc) main" > /etc/apt/sources.list.d/sensu.list &&\
     apt-get update &&\
     apt-get install -y sensu=${SENSU_VERSION} &&\
     rm -rf /opt/sensu/embedded/lib/ruby/gems/2.5.0/{cache,doc}/* &&\
@@ -34,9 +65,7 @@ RUN \
     curl -Ls https://github.com/arschles/envtpl/releases/download/${ENVTPL_VERSION}/envtpl_linux_amd64 > /usr/local/bin/envtpl &&\
     chmod +x /usr/local/bin/envtpl &&\
     gem install --no-document yaml2json &&\
-    mkdir -p /etc/sensu/conf.d /etc/sensu/check.d /etc/sensu/extensions /etc/sensu/plugins /etc/sensu/handlers &&\
-    # Undo world writable bundle directory, see https://github.com/docker-library/ruby/issues/74
-    chmod -R o-w /usr/local/bundle
+    mkdir -p /etc/sensu/conf.d /etc/sensu/check.d /etc/sensu/extensions /etc/sensu/plugins /etc/sensu/handlers
 
 COPY templates /etc/sensu/templates
 COPY bin /bin/
