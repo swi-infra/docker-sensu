@@ -28,7 +28,8 @@ RUN apt-get update && \
         zlib1g-dev \
         libmysqlclient-dev \
         redis-server \
-        libsqlite3-dev
+        libsqlite3-dev \
+        udev
 COPY --from=rubybuild $RUBY_PATH $RUBY_PATH
 MAINTAINER Shane Starcher <shanestarcher@gmail.com>
 
