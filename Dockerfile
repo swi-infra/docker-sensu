@@ -33,7 +33,7 @@ RUN apt-get update && \
 COPY --from=rubybuild $RUBY_PATH $RUBY_PATH
 MAINTAINER Shane Starcher <shanestarcher@gmail.com>
 
-ARG SENSU_VERSION=1.8.0-1
+ARG SENSU_VERSION=1.9.0-1
 ARG DUMB_INIT_VERSION=1.2.0
 ARG ENVTPL_VERSION=0.2.3
 
