@@ -71,7 +71,6 @@ COPY templates /etc/sensu/templates
 COPY bin /bin/
 
 RUN chgrp -R sensu /etc/sensu; mkdir -p /home/sensu; chown sensu:sensu /home/sensu
-USER sensu
 WORKDIR /home/sensu
 
 ENV SENSU_VERSION=${SENSU_VERSION} \
