@@ -10,7 +10,7 @@ RUN apt-get update && \
         build-essential
 RUN apt-get install -y wget
 RUN apt-get install -y libssl-dev libreadline-dev zlib1g-dev
-RUN git clone git://github.com/rbenv/ruby-build.git $RUBY_PATH/plugins/ruby-build \
+RUN git clone https://github.com/rbenv/ruby-build.git $RUBY_PATH/plugins/ruby-build \
 &&  $RUBY_PATH/plugins/ruby-build/install.sh
 RUN ruby-build $RUBY_VERSION $RUBY_PATH
 
@@ -23,9 +23,12 @@ RUN apt-get update && \
         git \
         curl \
         gcc \
+        g++ \
         make \
         libssl-dev \
         zlib1g-dev \
+        libffi-dev \
+        autoconf \
         libmysqlclient-dev \
         redis-server \
         libsqlite3-dev \
@@ -39,7 +42,7 @@ ARG ENVTPL_VERSION=0.2.3
 
 RUN \
     apt-get update &&\
-    apt-get install -y --no-install-recommends curl ca-certificates apt-transport-https gnupg locales lsb-release && \
+    apt-get install -y --no-install-recommends curl ca-certificates locales lsb-release && \
     # Setup default locale & cleanup unneeded
     echo "LC_ALL=en_US.UTF-8" >> /etc/environment &&\
     echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen &&\
@@ -47,13 +50,19 @@ RUN \
     locale-gen en_US.UTF-8 &&\
     find /usr/share/i18n/locales ! -name en_US -type f -exec rm -v {} + &&\
     find /usr/share/i18n/charmaps ! -name UTF-8.gz -type f -exec rm -v {} + &&\
-    # Install Sensu
-    curl -s https://sensu.global.ssl.fastly.net/apt/pubkey.gpg | apt-key add - &&\
-    echo "deb https://sensu.global.ssl.fastly.net/apt $(lsb_release -sc) main" > /etc/apt/sources.list.d/sensu.list &&\
-    apt-get update &&\
-    apt-get install -y sensu=${SENSU_VERSION} &&\
-    rm -rf /opt/sensu/embedded/lib/ruby/gems/2.5.0/{cache,doc}/* &&\
-    find /opt/sensu/embedded/lib/ruby/gems/ -name "*.o" -delete &&\
+    # Install Sensu 1.9.0 from RubyGems (Sensu 1.x APT repo was removed Feb 2021)
+    mkdir -p /opt/sensu/embedded/bin &&\
+    # Pin transitive dependency compatible with Ruby 2.5
+    gem install --clear-sources --source https://rubygems.org/ public_suffix -v 4.0.7 --no-document &&\
+    gem install --clear-sources --source https://rubygems.org/ sensu -v 1.9.0 --no-document &&\
+    ruby -e 'Gem::Specification.find_by_name("sensu","1.9.0")' &&\
+    SENSU_GEM_DIR="$(ruby -e 'print Gem::Specification.find_by_name("sensu","1.9.0").gem_dir')" &&\
+    ln -sf "${SENSU_GEM_DIR}/exe/sensu-api" /opt/sensu/embedded/bin/sensu-api &&\
+    ln -sf "${SENSU_GEM_DIR}/exe/sensu-server" /opt/sensu/embedded/bin/sensu-server &&\
+    ln -sf "${SENSU_GEM_DIR}/exe/sensu-client" /opt/sensu/embedded/bin/sensu-client &&\
+    test -x /opt/sensu/embedded/bin/sensu-api &&\
+    /opt/sensu/embedded/bin/sensu-api --help >/dev/null &&\
+    ( useradd -r -s /bin/false sensu 2>/dev/null || true ) &&\
     # Cleanup debian
     apt-get autoremove -y &&\
     rm -rf /var/lib/apt/lists/* &&\
@@ -70,7 +79,8 @@ RUN \
 COPY templates /etc/sensu/templates
 COPY bin /bin/
 
-RUN chgrp -R sensu /etc/sensu; mkdir -p /home/sensu; chown sensu:sensu /home/sensu
+RUN useradd -r -s /bin/false sensu 2>/dev/null || true && \
+    chgrp -R sensu /etc/sensu && mkdir -p /home/sensu && chown sensu:sensu /home/sensu
 WORKDIR /home/sensu
 
 ENV SENSU_VERSION=${SENSU_VERSION} \
@@ -111,8 +121,8 @@ ENV SENSU_VERSION=${SENSU_VERSION} \
     HOST_DEV_DIR=/dev \
     HOST_PROC_DIR=/proc \
     HOST_SYS_DIR=/sys \
-    # Include sensu installation into path
-    PATH=/opt/sensu/embedded/bin:$PATH \
+    # Keep legacy path expected by startup scripts
+    PATH=/opt/sensu/embedded/bin:$RUBY_PATH/bin:$PATH \
     # Set default locale & collations
     LC_ALL=en_US.UTF-8 \
     # -W0 avoids sensu client output to be spoiled with ruby 2.4 warnings

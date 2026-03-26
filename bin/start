@@ -18,6 +18,25 @@ else
 fi
 
 SENSU_SERVICE=${SENSU_SERVICE-$1}
+SENSU_CMD="sensu-${SENSU_SERVICE}"
+
+resolve_sensu_cmd() {
+  if command -v "$SENSU_CMD" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  GEM_BINDIR="$(ruby -e 'print Gem.bindir' 2>/dev/null || true)"
+  if [ -n "$GEM_BINDIR" ] && [ -x "${GEM_BINDIR}/${SENSU_CMD}" ]; then
+    SENSU_CMD="${GEM_BINDIR}/${SENSU_CMD}"
+    return 0
+  fi
+
+  echo "ERROR: ${SENSU_CMD} not found."
+  echo "PATH=${PATH}"
+  echo "RubyGems bindir=${GEM_BINDIR:-unknown}"
+  gem list '^sensu$' -a || true
+  exit 127
+}
 
 case "$SENSU_SERVICE" in
   api)
@@ -80,7 +99,8 @@ case "$SENSU_SERVICE" in
       OPTIONS="${OPTIONS} --print_config --validate_config"
     fi
 
-    exec sensu-$SENSU_SERVICE -d $DIRS -e $EXTENSION_DIR -L $LOG_LEVEL $OPTIONS
+    resolve_sensu_cmd
+    exec "$SENSU_CMD" -d $DIRS -e $EXTENSION_DIR -L $LOG_LEVEL $OPTIONS
     ;;
   *)
     echo 'Specify either api/server/client'
